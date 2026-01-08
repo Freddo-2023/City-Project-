@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D Procedural City</title>
+    <style>
+        body { margin: 0; overflow: hidden; background: #87CEEB; font-family: sans-serif; }
+        #controls { position: absolute; top: 10px; left: 10px; color: white; background: rgba(0,0,0,0.5); padding: 10px; pointer-events: none; }
+    </style>
+</head>
+<body>
+    <div id="controls">
+        <b>City Inspector</b><br>
+        Left Click: Rotate | Right Click: Pan | Scroll: Zoom
+    </div>
+    <script type="module">
+        import * as THREE from 'https://cdn.skypack.dev/three@0.132.2';
+        import { OrbitControls } from 'https://cdn.skypack.dev/three@0.132.2/examples/jsm/controls/OrbitControls.js';
+
+        // --- SCENE SETUP ---
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x87CEEB);
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.shadowMap.enabled = true;
+        document.body.appendChild(renderer.domElement);
+
+        const controls = new OrbitControls(camera, renderer.domElement);
+        camera.position.set(50, 50, 50);
+        controls.update();
+
+        // --- LIGHTING ---
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+        scene.add(ambientLight);
+        const sun = new THREE.DirectionalLight(0xffffff, 1);
+        sun.position.set(100, 100, 50);
+        sun.castShadow = true;
+        scene.add(sun);
+
+        // --- GROUND & RIVER ---
+        const groundGeo = new THREE.PlaneGeometry(200, 200);
+        const groundMat = new THREE.MeshPhongMaterial({ color: 0x33aa33 });
+        const ground = new THREE.Mesh(groundGeo, groundMat);
+        ground.rotation.x = -Math.PI / 2;
+        ground.receiveShadow = true;
+        scene.add(ground);
+
+        // Water
+        const waterGeo = new THREE.PlaneGeometry(40, 200);
+        const waterMat = new THREE.MeshPhongMaterial({ color: 0x0077ff, transparent: true, opacity: 0.8 });
+        const water = new THREE.Mesh(waterGeo, waterMat);
+        water.rotation.x = -Math.PI / 2;
+        water.position.y = 0.1;
+        scene.add(water);
+
+        // --- BUILDINGS ---
+        function createBuilding(w, h, d, x, z, color = 0x888888) {
+            const geo = new THREE.BoxGeometry(w, h, d);
+            const mat = new THREE.MeshPhongMaterial({ color: color });
+            const mesh = new THREE.Mesh(geo, mat);
+            mesh.position.set(x, h/2, z);
+            mesh.castShadow = true;
+            mesh.receiveShadow = true;
+            scene.add(mesh);
+            return mesh;
+        }
+
+        // Two Skyscrapers
+        createBuilding(10, 60, 10, -35, -20, 0x444466);
+        createBuilding(12, 80, 12, 40, 30, 0x555555);
+
+        // Random small buildings
+        for(let i=0; i<30; i++) {
+            let x = (Math.random() - 0.5) * 160;
+            let z = (Math.random() - 0.5) * 160;
+            if (Math.abs(x) < 25) x += 50; // Keep out of river
+            createBuilding(5, 5 + Math.random() * 15, 5, x, z);
+        }
+
+        // --- CRANES ---
+        function createCrane(x, z) {
+            const group = new THREE.Group();
+            const tower = createBuilding(1, 40, 1, 0, 0, 0xffff00);
+            const arm = createBuilding(20, 1, 1, 8, 20, 0xffff00);
+            group.add(tower);
+            group.add(arm);
+            group.position.set(x, 0, z);
+            scene.add(group);
+            return group;
+        }
+        const cranes = [createCrane(-40, 40), createCrane(30, -50), createCrane(50, 10)];
+
+        // --- CROWDS (PEOPLE) ---
+        const people = [];
+        const personGeo = new THREE.BoxGeometry(0.5, 1.5, 0.5);
+        for(let i=0; i<50; i++) {
+            const personMat = new THREE.MeshPhongMaterial({ color: Math.random() * 0xffffff });
+            const person = new THREE.Mesh(personGeo, personMat);
+            person.position.set((Math.random()-0.5)*150, 0.75, (Math.random()-0.5)*150);
+            scene.add(person);
+            people.push({ mesh: person, velocity: (Math.random() * 0.1) + 0.05 });
+        }
+
+        // --- ANIMATION LOOP ---
+        function animate() {
+            requestAnimationFrame(animate);
+
+            // Move people
+            people.forEach(p => {
+                p.mesh.position.z += p.velocity;
+                if(p.mesh.position.z > 100) p.mesh.position.z = -100;
+                // Simple bobbing effect
+                p.mesh.position.y = 0.75 + Math.abs(Math.sin(Date.now() * 0.01)) * 0.1;
+            });
+
+            // Rotate cranes slowly
+            cranes.forEach((c, i) => {
+                c.rotation.y += 0.005 * (i + 1);
+            });
+
+            renderer.render(scene, camera);
+        }
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        animate();
+    </script>
+</body>
+</html>
